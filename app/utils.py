@@ -6,12 +6,13 @@ import uuid
 from pathlib import Path
 
 from app.config import settings
+from app.constants import (
+    DANGEROUS_FILENAME_CHARS,
+    FILE_READ_BUFFER_SIZE,
+    HASH_CHUNK_SIZE,
+    MAX_FILENAME_LENGTH,
+)
 from app.exceptions import FileValidationError, UnsupportedFormatError
-
-# Constants
-CHUNK_SIZE = 4096  # For file reading/hashing
-MAX_FILENAME_LENGTH = 255
-DANGEROUS_CHARS = '<>:"|?*\x00'
 
 
 def generate_job_id() -> str:
@@ -79,10 +80,10 @@ def get_file_hash(file_path: Path) -> str:
     """Calculate SHA256 hash of a file using optimized buffered I/O."""
     sha256_hash = hashlib.sha256()
     # Use larger buffer for better I/O performance
-    buffer_size = max(CHUNK_SIZE, 65536)
+    buffer_size = max(HASH_CHUNK_SIZE, FILE_READ_BUFFER_SIZE)
 
     # Use buffered binary read for optimal performance
-    with open(file_path, "rb", buffering=buffer_size) as f:
+    with file_path.open("rb", buffering=buffer_size) as f:
         # Use generator expression for memory efficiency
         # Read in optimized chunks
         for byte_block in iter(lambda: f.read(buffer_size), b""):
@@ -98,7 +99,7 @@ def sanitize_filename(filename: str) -> str:
 
     # Remove or replace dangerous characters using str.translate (more efficient)
     sanitized = sanitized.translate(
-        str.maketrans(DANGEROUS_CHARS, "_" * len(DANGEROUS_CHARS))
+        str.maketrans(DANGEROUS_FILENAME_CHARS, "_" * len(DANGEROUS_FILENAME_CHARS))
     )
 
     # Limit length

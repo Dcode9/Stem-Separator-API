@@ -17,17 +17,17 @@ router = APIRouter(tags=["health"])
     summary="Health check",
     description="""
     Check if the API service is running and healthy.
-    
+
     This endpoint provides basic health status information including:
     - Service status (healthy/unhealthy)
     - API version
     - Service name
-    
+
     **Use Cases:**
     - Load balancer health checks
     - Monitoring and alerting systems
     - Service discovery
-    
+
     **Response:**
     Returns 200 OK if the service is healthy, with status information in the response body.
     """,
@@ -67,17 +67,17 @@ async def health_check() -> HealthResponse:
     summary="Readiness check",
     description="""
     Check if the API is ready to process separation requests.
-    
+
     This endpoint performs a more thorough check than `/health` by verifying:
     - Service is running
     - Spleeter models are loaded and available
     - Audio service is initialized
-    
+
     **Use Cases:**
     - Kubernetes readiness probes
     - Pre-flight checks before sending requests
     - Verifying model availability
-    
+
     **Response States:**
     - `ready`: Service is fully operational and can process requests
     - `loading`: Service is starting up, models are being loaded

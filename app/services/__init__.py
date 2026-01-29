@@ -1,1 +1,1 @@
-"""Services module for business logic."""
+"""Business logic services (e.g. AudioService for stem separation)."""

@@ -3,14 +3,19 @@
 from pathlib import Path as PathLib
 from typing import Optional
 
+import aiofiles
 from fastapi import APIRouter, File, HTTPException, Path, Query, UploadFile, status
 from fastapi.responses import FileResponse
-
 from loguru import logger
 
 from app.config import settings
-from app.exceptions import FileValidationError, StemSeparatorException
-from app.models import ErrorResponse, SeparationResponse, StemType
+from app.constants import API_V1_PREFIX, FILE_READ_BUFFER_SIZE, UPLOAD_CHUNK_SIZE
+from app.exceptions import (
+    FileValidationError,
+    StemSeparatorException,
+    error_response_dict,
+)
+from app.models import SeparationResponse, StemType
 from app.services.audio_service import audio_service
 from app.utils import (
     generate_job_id,
@@ -19,13 +24,9 @@ from app.utils import (
     validate_file_extension,
 )
 
-# Constants
-FILE_CHUNK_SIZE = 8192  # For reading uploaded files
-
-# Bind logger with module name
 logger = logger.bind(name=__name__)
 
-router = APIRouter(prefix="/api/v1", tags=["separation"])
+router = APIRouter(prefix=API_V1_PREFIX, tags=["separation"])
 
 
 @router.post(
@@ -35,21 +36,21 @@ router = APIRouter(prefix="/api/v1", tags=["separation"])
     summary="Separate audio file into stems",
     description="""
     Upload an audio file and separate it into individual stems using Spleeter's deep learning models.
-    
+
     **Supported Audio Formats:**
     - MP3, WAV, FLAC, M4A, AAC, OGG
-    
+
     **Stem Options:**
     - **2stems**: Separates into vocals and accompaniment
     - **4stems**: Separates into vocals, drums, bass, and other
     - **5stems**: Separates into vocals, drums, bass, piano, and other
-    
+
     **Process:**
     1. Upload your audio file (max size: 100MB)
     2. Choose stem type, bitrate, and output format
     3. Receive a job ID and list of output files
     4. Download individual stems using the download endpoint
-    
+
     **Performance:**
     - Processing time depends on audio length and stem type
     - Typical processing: 10-30 seconds for a 3-minute song
@@ -163,26 +164,20 @@ async def separate_audio(
             PathLib(settings.UPLOAD_DIR) / f"{job_id}_{sanitized_filename}"
         )
 
-        # Read file in chunks to handle large files efficiently
-        # Use buffered I/O for better performance
+        # Async write so the event loop isn't blocked during large uploads
         max_size = settings.MAX_UPLOAD_SIZE
         max_size_mb = max_size / (1024 * 1024)
-        # Use larger buffer for better I/O performance (64KB is optimal for most systems)
-        buffer_size = max(FILE_CHUNK_SIZE, 65536)
+        buffer_size = max(UPLOAD_CHUNK_SIZE, FILE_READ_BUFFER_SIZE)
+        file_size = 0
 
-        # Use binary mode with buffering for optimal performance
-        with open(temp_input_file, "wb", buffering=buffer_size) as f:
-            file_size = 0
-            # Read in optimized chunks
+        async with aiofiles.open(temp_input_file, "wb") as f:
             while chunk := await file.read(buffer_size):
-                chunk_size = len(chunk)
-                file_size += chunk_size
-                # Early exit check before write for better performance
+                file_size += len(chunk)
                 if file_size > max_size:
                     raise FileValidationError(
                         f"File size exceeds maximum allowed size ({max_size_mb}MB)"
                     )
-                f.write(chunk)
+                await f.write(chunk)
 
         # Validate saved file
         validate_audio_file(temp_input_file)
@@ -228,12 +223,8 @@ async def separate_audio(
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(
-                success=False,
-                error=e.message,
-                error_code=e.error_code,
-            ).model_dump(),
-        )
+            detail=error_response_dict(error=e.message, error_code=e.error_code),
+        ) from e
 
     except Exception as e:
         logger.exception(
@@ -243,13 +234,12 @@ async def separate_audio(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=ErrorResponse(
-                success=False,
+            detail=error_response_dict(
                 error="Internal server error during processing",
                 error_code="INTERNAL_ERROR",
                 details={"original_error": str(e)},
-            ).model_dump(),
-        )
+            ),
+        ) from e
 
     finally:
         # Cleanup temporary files - combine conditionals for cleaner code
@@ -272,10 +262,10 @@ async def separate_audio(
     summary="Download separated stem file",
     description="""
     Download a specific stem file from a completed separation job.
-    
+
     Use the `job_id` and `filename` from the separation response to download individual stems.
     The filename should match one of the files listed in the `output_files` array from the separation response.
-    
+
     **Example:**
     If the separation response contains:
     ```json
@@ -284,7 +274,7 @@ async def separate_audio(
       "output_files": ["vocals.wav", "accompaniment.wav"]
     }
     ```
-    
+
     You can download vocals.wav using:
     ```
     GET /api/v1/separate/181543dd-c632-4a42-bb8d-f3ca74c763cd/download/vocals.wav
@@ -379,11 +369,10 @@ async def download_stem(
             )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=ErrorResponse(
-                    success=False,
+                detail=error_response_dict(
                     error=f"File not found: {filename}",
                     error_code="FILE_NOT_FOUND",
-                ).model_dump(),
+                ),
             )
 
         # Validate file is within output directory (prevent path traversal)
@@ -398,12 +387,11 @@ async def download_stem(
             )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=ErrorResponse(
-                    success=False,
+                detail=error_response_dict(
                     error="Invalid file path",
                     error_code="INVALID_PATH",
-                ).model_dump(),
-            )
+                ),
+            ) from None
 
         return FileResponse(
             path=str(file_path),
@@ -422,9 +410,8 @@ async def download_stem(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=ErrorResponse(
-                success=False,
+            detail=error_response_dict(
                 error="Internal server error during download",
                 error_code="DOWNLOAD_ERROR",
-            ).model_dump(),
-        )
+            ),
+        ) from e

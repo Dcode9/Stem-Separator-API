@@ -1,5 +1,23 @@
 """Custom exceptions for the application."""
 
+from typing import Any, Optional
+
+from app.models import ErrorResponse
+
+
+def error_response_dict(
+    error: str,
+    error_code: str,
+    details: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
+    """Build a consistent error response dict for JSON responses."""
+    return ErrorResponse(
+        success=False,
+        error=error,
+        error_code=error_code,
+        details=details,
+    ).model_dump()
+
 
 class StemSeparatorException(Exception):
     """Base exception for stem separator errors."""

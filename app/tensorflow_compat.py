@@ -7,6 +7,7 @@ This must be imported before Spleeter uses tensorflow.estimator.
 """
 
 import sys
+from contextlib import suppress
 from typing import Any
 
 
@@ -24,7 +25,7 @@ def patch_tensorflow_estimator() -> None:
 
     try:
         # Method 1: Direct import from _api.v1 (preferred method)
-        from tensorflow_estimator._api.v1 import estimator  # noqa: E402
+        from tensorflow_estimator._api.v1 import estimator
 
         # Add estimator to tensorflow module
         tf.estimator = estimator  # type: ignore
@@ -35,21 +36,22 @@ def patch_tensorflow_estimator() -> None:
 
     try:
         # Method 2: Import tensorflow_estimator and access estimator via _api
-        import tensorflow_estimator  # noqa: E402
+        import tensorflow_estimator
 
         # Try different access patterns
-        if hasattr(tensorflow_estimator, "_api") and hasattr(
-            tensorflow_estimator._api, "v1"
+        if (
+            hasattr(tensorflow_estimator, "_api")
+            and hasattr(tensorflow_estimator._api, "v1")
+            and hasattr(tensorflow_estimator._api.v1, "estimator")
         ):
-            if hasattr(tensorflow_estimator._api.v1, "estimator"):
-                tf.estimator = tensorflow_estimator._api.v1.estimator  # type: ignore
-                return
+            tf.estimator = tensorflow_estimator._api.v1.estimator  # type: ignore
+            return
     except (ImportError, AttributeError):
         pass
 
     try:
         # Method 3: Import from python.estimator.estimator_lib
-        import tensorflow_estimator.python.estimator.estimator_lib as estimator_lib  # noqa: E402
+        import tensorflow_estimator.python.estimator.estimator_lib as estimator_lib
 
         # Create a wrapper that provides the needed classes
         class EstimatorWrapper:
@@ -100,8 +102,5 @@ def patch_tensorflow_estimator() -> None:
 
 # Try to patch immediately if tensorflow is already imported
 # This handles the case where tensorflow was imported before this module
-try:
+with suppress(Exception):
     patch_tensorflow_estimator()
-except Exception:
-    # If patching fails, it will be retried when tensorflow is imported
-    pass

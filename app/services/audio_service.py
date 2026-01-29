@@ -2,18 +2,18 @@
 
 # Import TensorFlow compatibility shim before Spleeter
 # This patches tensorflow.estimator which is required by Spleeter
-import app.tensorflow_compat  # noqa: F401
-
 import shutil
+import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
 
 from halo import Halo
 from loguru import logger
 from spleeter.audio.adapter import AudioAdapter
 from spleeter.separator import Separator
 
+import app.tensorflow_compat
 from app.config import settings
 from app.exceptions import (
     ModelNotFoundError,
@@ -25,13 +25,13 @@ from app.utils import generate_job_id
 
 # Patch tensorflow if it's already imported (lazy patching)
 # This must happen after imports but before Spleeter uses tensorflow
-app.tensorflow_compat.patch_tensorflow_estimator()  # noqa: E402
+app.tensorflow_compat.patch_tensorflow_estimator()
 
 # Bind logger with module name
 logger = logger.bind(name=__name__)
 
 # Pre-compute stem files mapping for O(1) lookup instead of O(n) if/elif
-STEM_FILES_MAP: Dict[StemType, List[str]] = {
+STEM_FILES_MAP: dict[StemType, list[str]] = {
     StemType.TWO_STEMS: ["vocals", "accompaniment"],
     StemType.FOUR_STEMS: ["vocals", "drums", "bass", "other"],
     StemType.FIVE_STEMS: ["vocals", "drums", "bass", "piano", "other"],
@@ -43,7 +43,7 @@ class AudioService:
 
     def __init__(self):
         """Initialize the audio service."""
-        self.separators: Dict[str, Separator] = {}
+        self.separators: dict[str, Separator] = {}
         self.audio_adapter = AudioAdapter.default()
         logger.info("AudioService initialized")
 
@@ -64,10 +64,40 @@ class AudioService:
                     stems=stems_str,
                 )
                 raise ModelNotFoundError(
-                    f"Failed to load Spleeter model '{stems_str}'. Error: {str(e)}"
-                )
+                    f"Failed to load Spleeter model '{stems_str}'. Error: {e!s}"
+                ) from e
 
         return self.separators[stems_str]
+
+    def _run_separation(
+        self,
+        separator: Separator,
+        input_file: Path,
+        output_dir: Path,
+        audio_format: str,
+        audio_bitrate: str,
+        job_id: str,
+        stems: StemType,
+    ) -> None:
+        """Run Spleeter separation, with optional terminal spinner for CLI use."""
+        kwargs = {
+            "codec": audio_format,
+            "bitrate": audio_bitrate,
+            "filename_format": "{instrument}.{codec}",
+        }
+        if sys.stdout.isatty():
+            try:
+                with Halo(
+                    text=f"Separating audio into {stems.value} (job: {job_id[:8]}...)",
+                    spinner="dots",
+                ):
+                    separator.separate_to_file(
+                        str(input_file), str(output_dir), **kwargs
+                    )
+                return
+            except Exception:
+                pass
+        separator.separate_to_file(str(input_file), str(output_dir), **kwargs)
 
     def separate_audio(
         self,
@@ -114,49 +144,17 @@ class AudioService:
                 # Ensure output directory exists (single call, cached)
                 output_dir.mkdir(parents=True, exist_ok=True)
 
-                # Get separator (cached in instance dict)
                 separator = self._get_separator(stems)
-
-                # Perform separation
                 logger.info("Performing separation", job_id=job_id, stems=stems.value)
-
-                # Use halo spinner for visual feedback (only in terminal environments)
-                # Spinner won't interfere with API responses
-                spinner_text = (
-                    f"Separating audio into {stems.value} (job: {job_id[:8]}...)"
+                self._run_separation(
+                    separator,
+                    input_file,
+                    output_dir,
+                    audio_format,
+                    audio_bitrate,
+                    job_id,
+                    stems,
                 )
-                try:
-                    # Check if running in terminal (not in API server context)
-                    import sys
-
-                    is_terminal = sys.stdout.isatty()
-                    if is_terminal:
-                        with Halo(text=spinner_text, spinner="dots"):
-                            separator.separate_to_file(
-                                str(input_file),
-                                str(output_dir),
-                                codec=audio_format,
-                                bitrate=audio_bitrate,
-                                filename_format="{instrument}.{codec}",
-                            )
-                    else:
-                        # No spinner in non-terminal environments (API server)
-                        separator.separate_to_file(
-                            str(input_file),
-                            str(output_dir),
-                            codec=audio_format,
-                            bitrate=audio_bitrate,
-                            filename_format="{instrument}.{codec}",
-                        )
-                except Exception:
-                    # Fallback if halo fails, just run without spinner
-                    separator.separate_to_file(
-                        str(input_file),
-                        str(output_dir),
-                        codec=audio_format,
-                        bitrate=audio_bitrate,
-                        filename_format="{instrument}.{codec}",
-                    )
 
                 # Get output files (optimized with dict lookup)
                 output_files = self._get_output_files(output_dir, stems)
@@ -185,9 +183,9 @@ class AudioService:
                     error=str(e),
                     processing_time=processing_time,
                 )
-                raise ProcessingError(f"Failed to separate audio: {str(e)}") from e
+                raise ProcessingError(f"Failed to separate audio: {e!s}") from e
 
-    def _get_output_files(self, output_dir: Path, stems: StemType) -> List[str]:
+    def _get_output_files(self, output_dir: Path, stems: StemType) -> list[str]:
         """Get list of output files based on stem type."""
         # O(1) dict lookup instead of O(n) if/elif chain
         expected_files = STEM_FILES_MAP.get(stems, [])

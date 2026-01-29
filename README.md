@@ -250,9 +250,10 @@ stem-sep/
 ├── app/
 │   ├── main.py                  # FastAPI application
 │   ├── config.py                # Configuration management
+│   ├── constants.py              # App-wide constants (API prefix, buffer sizes)
 │   ├── logging_config.py        # Loguru logging setup
 │   ├── models.py                # Pydantic models
-│   ├── exceptions.py            # Custom exceptions
+│   ├── exceptions.py            # Custom exceptions + error_response_dict()
 │   ├── utils.py                 # Utility functions
 │   ├── profiling.py             # Performance profiling
 │   ├── tensorflow_compat.py     # TensorFlow compatibility shim
@@ -280,15 +281,19 @@ stem-sep/
 
 This project maintains a **100/100 quality score** with zero errors or warnings:
 
-- ✅ **Ruff**: All linting checks pass
+- ✅ **Ruff**: All linting checks pass (E, W, F, I, B, C4, UP, RUF, SIM, PTH)
 - ✅ **Type Safety**: Full type hints throughout
-- ✅ **Formatting**: Consistent code formatting
+- ✅ **Formatting**: Consistent code formatting (line-length 88, double quotes)
 - ✅ **Documentation**: Comprehensive docstrings and API docs
 
 Run quality checks:
 ```bash
-ruff check app/
-ruff format app/
+ruff check app/        # 0 errors, 0 warnings
+ruff format app/       # or: ruff format --check app/
+# Or use the Makefile:
+make lint
+make format
+make check   # lint + format check (no write)
 ```
 
 ## 🐛 Troubleshooting
@@ -378,6 +383,7 @@ See `requirements.txt` for the complete list.
 ```bash
 # Development mode with auto-reload
 uvicorn app.main:app --reload
+# Or: make run
 
 # Production mode
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
