@@ -6,7 +6,8 @@ readme = "README.md"
 requires-python = ">=3.9"
 
 [tool.ruff]
-target-version = "py39"
+# Railway/Dockerfile use Python 3.8; use py38 so type hints stay 3.8-compatible
+target-version = "py38"
 line-length = 88
 src = ["app"]
 
@@ -26,6 +27,9 @@ select = [
 ignore = [
     "E501",   # line too long (handled by formatter)
     "B008",   # do not perform function calls in defaults (FastAPI File/Query pattern)
+    "UP006",  # use set/list/dict (PEP 585) - we use typing.* for Python 3.8 (Railway)
+    "UP035",  # deprecated typing.Set/List/Dict - required on 3.8
+    "UP045",  # use X | None (PEP 604) - Optional[] required on 3.8
 ]
 
 [tool.ruff.lint.isort]

@@ -1,7 +1,9 @@
 """Configuration management for the application."""
 
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Set
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -26,7 +28,7 @@ class Settings(BaseSettings):
 
     # File Upload Settings
     MAX_UPLOAD_SIZE: int = 100 * 1024 * 1024  # 100MB
-    ALLOWED_EXTENSIONS: set[str] = {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg"}
+    ALLOWED_EXTENSIONS: Set[str] = {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg"}
     UPLOAD_DIR: Path = Path("temp/uploads")
     OUTPUT_DIR: Path = Path("temp/output")
 

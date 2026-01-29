@@ -1,6 +1,8 @@
 """Custom exceptions for the application."""
 
-from typing import Any, Optional
+from __future__ import annotations
+
+from typing import Any, Dict, Optional
 
 from app.models import ErrorResponse
 
@@ -8,8 +10,8 @@ from app.models import ErrorResponse
 def error_response_dict(
     error: str,
     error_code: str,
-    details: Optional[dict[str, Any]] = None,
-) -> dict[str, Any]:
+    details: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """Build a consistent error response dict for JSON responses."""
     return ErrorResponse(
         success=False,

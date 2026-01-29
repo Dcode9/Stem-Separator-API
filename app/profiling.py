@@ -1,10 +1,12 @@
 """Performance profiling and monitoring utilities."""
 
+from __future__ import annotations
+
 import functools
 import time
 import tracemalloc
 from contextlib import contextmanager
-from typing import Callable, TypeVar
+from typing import Callable, Dict, TypeVar
 
 from loguru import logger
 
@@ -102,7 +104,7 @@ def profile_performance(operation_name: str):
         )
 
 
-def get_memory_usage() -> dict[str, float]:
+def get_memory_usage() -> Dict[str, float]:
     """Get current memory usage statistics."""
     try:
         import os
