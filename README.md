@@ -37,7 +37,8 @@ curl -X POST "https://stem-separator-api-production.up.railway.app/api/v1/separa
 
 ## 📋 Requirements
 
-- Python 3.9+
+- **Local development**: Python 3.9+ (3.9 recommended for Conda on Apple Silicon)
+- **Railway/Docker**: Python 3.8 (see [Production Deployment](#-production-deployment)); code is 3.8-compatible
 - Conda (Miniconda or Anaconda) - **Recommended for Apple Silicon Macs**
 - ffmpeg
 - libsndfile
@@ -268,8 +269,10 @@ stem-sep/
 │   ├── uploads/
 │   └── output/
 ├── logs/                        # Application logs
+├── Makefile                     # Dev commands (run, lint, format, check)
+├── pyproject.toml               # Ruff config, project metadata
 ├── requirements.txt             # Python dependencies (macOS)
-├── requirements-linux.txt      # Python dependencies (Linux/Railway)
+├── requirements-linux.txt       # Python dependencies (Linux/Railway)
 ├── Dockerfile                   # Docker configuration for Railway
 ├── start.sh                     # Startup script for Railway
 ├── Procfile                     # Railway Procfile
@@ -281,8 +284,8 @@ stem-sep/
 
 This project maintains a **100/100 quality score** with zero errors or warnings:
 
-- ✅ **Ruff**: All linting checks pass (E, W, F, I, B, C4, UP, RUF, SIM, PTH)
-- ✅ **Type Safety**: Full type hints throughout
+- ✅ **Ruff**: All linting checks pass (E, W, F, I, B, C4, UP, RUF, SIM, PTH); target Python 3.8 for deployment compatibility
+- ✅ **Type Safety**: Full type hints throughout (typing.Set/List/Dict for 3.8)
 - ✅ **Formatting**: Consistent code formatting (line-length 88, double quotes)
 - ✅ **Documentation**: Comprehensive docstrings and API docs
 
@@ -341,6 +344,9 @@ The project includes automatic TensorFlow compatibility handling for Apple Silic
    - Ensure `typing_extensions>=4.6.0` is installed
    - Required for Pydantic 2.9.2 compatibility
 
+5. **Railway / Python 3.8**
+   - Deployment uses Python 3.8. If you see `TypeError: 'type' object is not subscriptable`, ensure type hints use `typing.Set`, `typing.List`, `typing.Dict`, and `Optional[]` (not `set[str]`, `list[str]`, etc.) for 3.8 compatibility.
+
 ## 📚 Dependencies
 
 ### Core Dependencies
@@ -392,10 +398,13 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 ### Code Quality Checks
 
 ```bash
-# Linting
-ruff check app/
+# Linting and formatting
+make lint
+make format
+make check   # lint + format check (no write)
 
-# Formatting
+# Or run Ruff directly:
+ruff check app/
 ruff format app/
 
 # Type checking (if mypy is installed)
@@ -441,7 +450,7 @@ This project is configured for easy deployment on Railway and is **currently liv
    - Start the application
 
 **Technical Details:**
-- **Python Version**: 3.8 (for numpy 1.18.x wheel compatibility)
+- **Python Version**: 3.8 (Dockerfile; for numpy 1.18.x and Spleeter compatibility). Application code uses `typing.Set`/`List`/`Dict` and `Optional[]` so it runs on 3.8.
 - **TensorFlow**: 2.3.0 (required by Spleeter 2.1.0)
 - **Protobuf**: <=3.20.0 (required by TensorFlow 2.3.0)
 - **Platform**: Linux (Railway uses Linux containers)
