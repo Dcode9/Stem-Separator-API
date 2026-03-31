@@ -4,4 +4,4 @@ app = FastAPI()
 
 @app.get("/")
 def root():
-    return {"message": "Stem Splitter API is live!"}
+    return {"message": "Hello from FastAPI on Vercel!"}
