@@ -4,6 +4,10 @@ import subprocess
 
 app = FastAPI()
 
+@app.get("/")
+def root():
+    return {"message": "Stem Splitter API is live!"}
+
 @app.post("/separate")
 async def separate(file: UploadFile = File(...)):
     # Save uploaded file temporarily
